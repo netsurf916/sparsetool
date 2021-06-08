@@ -1,4 +1,4 @@
-#include <sparse.h>
+#include <sparse.hpp>
 
 bool read_data_retry( int fd, void *buffer, uint64_t size )
 {

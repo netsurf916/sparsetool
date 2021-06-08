@@ -1,4 +1,4 @@
-all: sparsetool.cpp sparse.cpp sparse.h
+all: sparsetool.cpp sparse.cpp sparse.hpp
 	g++ -I./ -o sparsetool sparse.cpp sparsetool.cpp
 
 clean:
