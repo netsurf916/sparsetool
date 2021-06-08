@@ -61,12 +61,12 @@ void print_header( sparse_header_t &header )
 bool valid_header( sparse_header_t &header )
 {
     bool ok = true;
-    ok = ok && (       SPARSE_HEADER_MAGIC == header.magic );
+    ok = ok && (       SPARSE_HEADER_MAGIC == header.magic         );
     ok = ok && (                         1 == header.major_version );
     ok = ok && (                         0 == header.minor_version );
-    ok = ok && (         SPARSE_BLOCK_SIZE == header.blk_sz );
-    ok = ok && ( sizeof( sparse_header_t ) == header.file_hdr_sz );
-    ok = ok && ( sizeof( chunk_header_t  ) == header.chunk_hdr_sz );
+    ok = ok && (         SPARSE_BLOCK_SIZE == header.blk_sz        );
+    ok = ok && ( sizeof( sparse_header_t ) == header.file_hdr_sz   );
+    ok = ok && ( sizeof( chunk_header_t  ) == header.chunk_hdr_sz  );
     return ok;
 }
 
@@ -104,10 +104,10 @@ void print_chunk_header( uint64_t &block_offset, chunk_header_t &header )
 
 bool valid_chunk_header( chunk_header_t &header )
 {
-    bool ok = ( ( header.chunk_type == CHUNK_TYPE_RAW           ) ||
-                ( header.chunk_type == CHUNK_TYPE_FILL          ) ||
-                ( header.chunk_type == CHUNK_TYPE_DONT_CARE     ) ||
-                ( header.chunk_type == CHUNK_TYPE_CRC32         ) );
+    bool ok = ( ( header.chunk_type == CHUNK_TYPE_RAW       ) ||
+                ( header.chunk_type == CHUNK_TYPE_FILL      ) ||
+                ( header.chunk_type == CHUNK_TYPE_DONT_CARE ) ||
+                ( header.chunk_type == CHUNK_TYPE_CRC32     ) );
     ok = ok && ( header.chunk_sz   >= sizeof( chunk_header_t ) );
     if( header.chunk_type == CHUNK_TYPE_FILL )
     {
