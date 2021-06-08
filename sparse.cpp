@@ -47,14 +47,14 @@ bool read_header( int fd, sparse_header_t &header )
 
 void print_header( sparse_header_t &header )
 {
-    printf( " [*] Magic            : 0x%08X\n", header.magic          );
-    printf( " [*] Major Version    : %10u\n",   header.major_version  );
-    printf( " [*] Minor Version    : %10u\n",   header.minor_version  );
-    printf( " [*] Header Size      : %10u\n",   header.file_hdr_sz    );
-    printf( " [*] Chunk Header Size: %10u\n",   header.chunk_hdr_sz   );
-    printf( " [*] Block Size       : %10lu\n",  header.blk_sz         );
-    printf( " [*] Total Blocks     : %10lu\n",  header.total_blks     );
-    printf( " [*] Total Chunks     : %10lu\n",  header.total_chunks   );
+    printf( " [*] Magic            : 0x%08X\n",   header.magic          );
+    printf( " [*] Major Version    : %10u\n",     header.major_version  );
+    printf( " [*] Minor Version    : %10u\n",     header.minor_version  );
+    printf( " [*] Header Size      : %10u\n",     header.file_hdr_sz    );
+    printf( " [*] Chunk Header Size: %10u\n",     header.chunk_hdr_sz   );
+    printf( " [*] Block Size       : %10lu\n",    header.blk_sz         );
+    printf( " [*] Total Blocks     : %10lu\n",    header.total_blks     );
+    printf( " [*] Total Chunks     : %10lu\n",    header.total_chunks   );
     printf( " [*] Checksum         : 0x%08X\n\n", header.image_checksum );
 }
 
