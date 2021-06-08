@@ -19,12 +19,10 @@ int main( int argc, char *argv[] )
     }
     else
     {
-        printf(" Usage: %s [w|i] <file/device name>\n", argv[0] );
-        printf( "   w - Write blocks to specified file/device\n" );
-        printf( "   i - Optionally added to 'w', e.g., 'wi', to" );
-        printf( "       only show the information, no data is" ); 
-        printf( "       output.\n" );
-        printf( "   Note: data to write is read from stdin.\n" );
+        printf( " Usage: %s [w|i] <file/device name>\n", argv[0]     );
+        printf( "   w - Write blocks to specified file/device.\n"    );
+        printf( "   i - Print sparse block information.\n" ); 
+        printf( "   Note: Input data is read from stdin.\n\n"        );
         return 0;
     }
 
