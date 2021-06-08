@@ -89,9 +89,35 @@ int main( int argc, char *argv[] )
                 {
                     // Write contents to specified file/device
                     uint64_t blocks = chunk_header.chunk_sz;
+                    char buffer[ SPARSE_BLOCK_SIZE ] = {0};
+                    if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
+                    {
+                        uint32_t filler = 0;
+                        io_error = !read_data_retry( STDIN_FILENO, ( void * )&filler, sizeof( filler ) );
+                        if( io_error )
+                        {
+                            printf( " [!] Read error!\n" );
+                        }
+                        else
+                        {
+                            for( int i = 0; i < ( SPARSE_BLOCK_SIZE / sizeof( filler ) ); ++i )
+                            {
+                                ( ( uint32_t * )buffer )[ i ] = filler;
+                            }
+                        }
+                    }
+                    if( chunk_header.chunk_type == CHUNK_TYPE_CRC32 )
+                    {
+                        uint32_t crc = 0;
+                        io_error = !read_data_retry( STDIN_FILENO, ( void * )&crc, sizeof( crc ) );
+                        if( io_error )
+                        {
+                            printf( " [!] Read error!\n" );
+                        }
+                        continue;
+                    }
                     while( !io_error && ( blocks > 0 ) )
                     {
-                        char buffer[ SPARSE_BLOCK_SIZE ] = {0};
                         if( chunk_header.chunk_type == CHUNK_TYPE_RAW )
                         {
                             io_error = !read_data_retry( STDIN_FILENO, buffer, SPARSE_BLOCK_SIZE );
@@ -99,13 +125,36 @@ int main( int argc, char *argv[] )
                             {
                                 printf( " [!] Read error!\n" );
                             }
-                        }
-                        if( !info_only && !io_error )
-                        {
-                            io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
-                            if( io_error )
+                            if( !info_only && !io_error )
                             {
-                                printf( " [!] Write error!\n" );
+                                io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                                if( io_error )
+                                {
+                                    printf( " [!] Write error!\n" );
+                                }
+                            }
+                        }
+                        else if( chunk_header.chunk_type == CHUNK_TYPE_DONT_CARE )
+                        {
+                            // buffer is already declared as all zeros
+                            if( !info_only && !io_error )
+                            {
+                                io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                                if( io_error )
+                                {
+                                    printf( " [!] Write error!\n" );
+                                }
+                            }
+                        }
+                        else if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
+                        {
+                            if( !info_only && !io_error )
+                            {
+                                io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                                if( io_error )
+                                {
+                                    printf( " [!] Write error!\n" );
+                                }
                             }
                         }
                         --blocks;
@@ -119,7 +168,11 @@ int main( int argc, char *argv[] )
             // !!! UNTESTED !!!
             // Treat input as a raw image
             // Recover data from the header since stdin doesn't support seeking
-            bool io_error = !write_data_retry( fd, ( void * )&header, sizeof( sparse_header_t ) );
+            bool io_error = false;
+            if( !info_only )
+            {
+                io_error = !write_data_retry( fd, ( void * )&header, sizeof( sparse_header_t ) );
+            }
             char buffer[ SPARSE_BLOCK_SIZE ] = {0};
             while( !io_error )
             {
@@ -129,13 +182,17 @@ int main( int argc, char *argv[] )
                 {
                     printf( " [!] Read error!\n" );
                 }
-                else
+                else if( !info_only )
                 {
                     io_error = !io_error && !write_data_retry( fd, buffer, input_count );
                     if( io_error )
                     {
                         printf( " [!] Write error!\n" );
                     }
+                }
+                else
+                {
+                    printf( " [*] Read: %u bytes\n", input_count );
                 }
             }
         }
