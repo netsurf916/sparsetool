@@ -2,198 +2,161 @@
 
 int main( int argc, char *argv[] )
 {
-    // Open the 1st parameter
     int fd = -1;
-    bool read_mode = false;
-    if( ( argc == 3 ) && ( argv[1][0] == 'r' ) ) {
-        fd = open( argv[2], O_RDONLY );
-        read_mode = true;
-    }
-    else if( ( argc == 3 ) && ( argv[1][0] == 'w' ) )
+    bool info_only = false;
+    if( ( argc == 3 ) && ( argv[1][0] == 'w' ) )
     {
         fd = open( argv[2], O_WRONLY );
+        if( fd < 0 )
+        {
+            printf( " [!] Unable to open: \"%s\"\n", argv[2] );
+            return -1;
+        }
     }
-    else if( ( argc != 2 ) || ( argv[1][1] != 'i' ) )
+    else if( ( argc == 2 ) && ( argv[1][0] == 'i' ) )
     {
-        printf(" Usage: %s [w|r][i] <file/device name>\n", argv[0] );
+        info_only = true;
+    }
+    else
+    {
+        printf(" Usage: %s [w|i] <file/device name>\n", argv[0] );
         printf( "   w - Write blocks to specified file/device\n" );
-        printf( "   r - Read blocks from specified file/device\n" );
-        printf( "   i - Optionally added to 'w' and 'r', e.g., 'wi'" );
-        printf( "       and 'ri' to only show the information, no" ); 
-        printf( "       data is output.\n" );
-        printf( "   Note: data to write is read from stdin and data\n" );
-        printf( "         read is written to stdout.\n\n" );
-    }
-    bool info_only = ( argv[1][1] == 'i' );
-    if( !info_only && ( fd < 0 ) )
-    {
-        // Unable to open, so no need to continue
-        return fd;
+        printf( "   i - Optionally added to 'w', e.g., 'wi', to" );
+        printf( "       only show the information, no data is" ); 
+        printf( "       output.\n" );
+        printf( "   Note: data to write is read from stdin.\n" );
+        return 0;
     }
 
     sparse_header_t header;
     chunk_header_t  chunk_header;
     uint64_t        block_offset = 0;
     uint64_t        offset       = 0;
-    if( read_mode )
+
+    // Read image data from stdin
+    if( read_header( STDIN_FILENO, header ) && valid_header( header ) )
     {
-        // Determine if it's a sparse image
-        if( read_header( fd, header ) && valid_header( header ) )
+        print_header( header );
+        bool io_error = false;
+        while( !io_error && read_chunk_header( STDIN_FILENO, chunk_header ) )
         {
-            if( info_only )
+            if( !info_only )
             {
-                print_header( header );
+                lseek64( fd, offset, SEEK_SET );
             }
-            while( read_chunk_header( fd, chunk_header ) && valid_chunk_header( chunk_header ) )
+            if( !valid_chunk_header( chunk_header ) )
             {
-                if( info_only )
+                printf( " [!] Invalid format!\n" );
+                break;
+            }
+            print_chunk_header( block_offset, chunk_header );
+            if( chunk_header.chunk_sz > 0 )
+            {
+                // Write contents to specified file/device
+                uint64_t blocks = chunk_header.chunk_sz;
+                char buffer[ SPARSE_BLOCK_SIZE ] = {0};
+                if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
                 {
-                    print_chunk_header( block_offset, chunk_header );
+                    uint32_t filler = 0;
+                    io_error = !read_data_retry( STDIN_FILENO, ( void * )&filler, sizeof( filler ) );
+                    if( io_error )
+                    {
+                        printf( " [!] Read error!\n" );
+                    }
+                    else
+                    {
+                        for( int i = 0; i < ( SPARSE_BLOCK_SIZE / sizeof( filler ) ); ++i )
+                        {
+                            ( ( uint32_t * )buffer )[ i ] = filler;
+                        }
+                    }
                 }
-                // chunk_header.total_sz represents the total size of the chunk, including
-                // the header, so subtract out the header size to determine how far to seek
-                uint64_t offset = chunk_header.total_sz - header.chunk_hdr_sz;
-                if( offset > 0 )
+                if( chunk_header.chunk_type == CHUNK_TYPE_CRC32 )
                 {
-                    // TODO: dump contents to stdout
-                    lseek64( fd, offset, SEEK_CUR );
+                    uint32_t crc = 0;
+                    io_error = !read_data_retry( STDIN_FILENO, ( void * )&crc, sizeof( crc ) );
+                    if( io_error )
+                    {
+                        printf( " [!] Read error!\n" );
+                    }
+                    continue;
+                }
+                while( !io_error && ( blocks > 0 ) )
+                {
+                    if( chunk_header.chunk_type == CHUNK_TYPE_RAW )
+                    {
+                        io_error = !read_data_retry( STDIN_FILENO, buffer, SPARSE_BLOCK_SIZE );
+                        if( io_error )
+                        {
+                            printf( " [!] Read error!\n" );
+                        }
+                        if( !info_only && !io_error )
+                        {
+                            io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                            if( io_error )
+                            {
+                                printf( " [!] Write error!\n" );
+                            }
+                        }
+                    }
+                    else if( chunk_header.chunk_type == CHUNK_TYPE_DONT_CARE )
+                    {
+                        // buffer is already declared as all zeros
+                        if( !info_only && !io_error )
+                        {
+                            io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                            if( io_error )
+                            {
+                                printf( " [!] Write error!\n" );
+                            }
+                        }
+                    }
+                    else if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
+                    {
+                        if( !info_only && !io_error )
+                        {
+                            io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                            if( io_error )
+                            {
+                                printf( " [!] Write error!\n" );
+                            }
+                        }
+                    }
+                    --blocks;
                 }
             }
-        }
-        else
-        {
-            // TODO: support raw images too
-            printf( " [!] No valid header found!\n" );
+            offset += chunk_header.total_sz - header.chunk_hdr_sz;
         }
     }
     else
     {
-        // Read image data from stdin (only sparse images supported)
-        if( read_header( STDIN_FILENO, header ) && valid_header( header ) )
+        // Treat input as a raw image
+        // Recover data from the header since stdin doesn't support seeking
+        bool io_error = false;
+        if( !info_only )
         {
-            print_header( header );
-            bool io_error = false;
-            while( !io_error && read_chunk_header( STDIN_FILENO, chunk_header ) )
-            {
-                if( !info_only )
-                {
-                    lseek64( fd, offset, SEEK_SET );
-                }
-                if( !valid_chunk_header( chunk_header ) )
-                {
-                    printf( " [!] Invalid format!\n" );
-                    break;
-                }
-                print_chunk_header( block_offset, chunk_header );
-                if( chunk_header.chunk_sz > 0 )
-                {
-                    // Write contents to specified file/device
-                    uint64_t blocks = chunk_header.chunk_sz;
-                    char buffer[ SPARSE_BLOCK_SIZE ] = {0};
-                    if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
-                    {
-                        uint32_t filler = 0;
-                        io_error = !read_data_retry( STDIN_FILENO, ( void * )&filler, sizeof( filler ) );
-                        if( io_error )
-                        {
-                            printf( " [!] Read error!\n" );
-                        }
-                        else
-                        {
-                            for( int i = 0; i < ( SPARSE_BLOCK_SIZE / sizeof( filler ) ); ++i )
-                            {
-                                ( ( uint32_t * )buffer )[ i ] = filler;
-                            }
-                        }
-                    }
-                    if( chunk_header.chunk_type == CHUNK_TYPE_CRC32 )
-                    {
-                        uint32_t crc = 0;
-                        io_error = !read_data_retry( STDIN_FILENO, ( void * )&crc, sizeof( crc ) );
-                        if( io_error )
-                        {
-                            printf( " [!] Read error!\n" );
-                        }
-                        continue;
-                    }
-                    while( !io_error && ( blocks > 0 ) )
-                    {
-                        if( chunk_header.chunk_type == CHUNK_TYPE_RAW )
-                        {
-                            io_error = !read_data_retry( STDIN_FILENO, buffer, SPARSE_BLOCK_SIZE );
-                            if( io_error )
-                            {
-                                printf( " [!] Read error!\n" );
-                            }
-                            if( !info_only && !io_error )
-                            {
-                                io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
-                                if( io_error )
-                                {
-                                    printf( " [!] Write error!\n" );
-                                }
-                            }
-                        }
-                        else if( chunk_header.chunk_type == CHUNK_TYPE_DONT_CARE )
-                        {
-                            // buffer is already declared as all zeros
-                            if( !info_only && !io_error )
-                            {
-                                io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
-                                if( io_error )
-                                {
-                                    printf( " [!] Write error!\n" );
-                                }
-                            }
-                        }
-                        else if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
-                        {
-                            if( !info_only && !io_error )
-                            {
-                                io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
-                                if( io_error )
-                                {
-                                    printf( " [!] Write error!\n" );
-                                }
-                            }
-                        }
-                        --blocks;
-                    }
-                }
-                offset += chunk_header.total_sz - header.chunk_hdr_sz;
-            }
+            io_error = !write_data_retry( fd, ( void * )&header, sizeof( sparse_header_t ) );
         }
-        else
+        char buffer[ SPARSE_BLOCK_SIZE ] = {0};
+        while( !io_error )
         {
-            // !!! UNTESTED !!!
-            // Treat input as a raw image
-            // Recover data from the header since stdin doesn't support seeking
-            bool io_error = false;
-            if( !info_only )
+            int64_t input_count = read( STDIN_FILENO, buffer, SPARSE_BLOCK_SIZE );
+            io_error = ( input_count <= 0 );
+            if( io_error )
             {
-                io_error = !write_data_retry( fd, ( void * )&header, sizeof( sparse_header_t ) );
+                printf( " [!] Read error!\n" );
             }
-            char buffer[ SPARSE_BLOCK_SIZE ] = {0};
-            while( !io_error )
+            else if( !info_only )
             {
-                int64_t input_count = read( STDIN_FILENO, buffer, SPARSE_BLOCK_SIZE );
-                io_error = ( input_count <= 0 );
+                io_error = !io_error && !write_data_retry( fd, buffer, input_count );
                 if( io_error )
                 {
-                    printf( " [!] Read error!\n" );
+                    printf( " [!] Write error!\n" );
                 }
-                else if( !info_only )
-                {
-                    io_error = !io_error && !write_data_retry( fd, buffer, input_count );
-                    if( io_error )
-                    {
-                        printf( " [!] Write error!\n" );
-                    }
-                }
-                else
-                {
-                    printf( " [*] Read: %u bytes\n", input_count );
-                }
+            }
+            else
+            {
+                printf( " [*] Read: %u bytes\n", input_count );
             }
         }
     }
