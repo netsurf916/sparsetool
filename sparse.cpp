@@ -109,7 +109,7 @@ bool valid_chunk_header( chunk_header_t &header )
                 ( header.chunk_type == CHUNK_TYPE_DONT_CARE ) ||
                 ( header.chunk_type == CHUNK_TYPE_CRC32     ) );
     ok = ok && ( header.chunk_sz   >= sizeof( chunk_header_t ) );
-    if( header.chunk_type == CHUNK_TYPE_FILL )
+    if( header.chunk_type == CHUNK_TYPE_RAW )
     {
         ok = ok && ( ( header.total_sz - ( header.chunk_sz * SPARSE_BLOCK_SIZE ) ) == sizeof( chunk_header_t ) );
     }
