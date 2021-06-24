@@ -3,25 +3,30 @@
 int main( int argc, char *argv[] )
 {
     int fd = -1;
-    bool info_only = false;
-    if( ( argc == 3 ) && ( argv[1][0] == 'w' ) )
+    bool print_info = false;
+    if( ( argc == 3 ) && ( ( argv[1][0] == 'w' ) || ( argv[1][1] == 'w' ) ) )
     {
         fd = open( argv[2], O_WRONLY );
         if( fd < 0 )
         {
-            printf( " [!] Unable to open: \"%s\"\n", argv[2] );
+            fprintf( stderr, " [!] Unable to open: \"%s\"\n", argv[2] );
+            fflush( stderr );
             return -1;
         }
+        if( ( argv[1][0] == 'v' ) || ( argv[1][1] == 'v' ) )
+        {
+            print_info = true;
+        }
     }
-    else if( ( argc == 2 ) && ( argv[1][0] == 'i' ) )
+    else if( ( argc == 2 ) && ( argv[1][0] == 'v' ) )
     {
-        info_only = true;
+        print_info = true;
     }
     else
     {
-        printf( " Usage: %s [w|i] <file/device name>\n", argv[0]     );
+        printf( " Usage: %s [w|v] <file/device name>\n", argv[0]     );
         printf( "   w - Write blocks to specified file/device.\n"    );
-        printf( "   i - Print sparse block information.\n" ); 
+        printf( "   v - Show verbose output.\n" ); 
         printf( "   Note: Input data is read from stdin.\n\n"        );
         return 0;
     }
@@ -34,20 +39,26 @@ int main( int argc, char *argv[] )
     // Read image data from stdin
     if( read_header( STDIN_FILENO, header ) && valid_header( header ) )
     {
-        print_header( header );
+        if( print_info )
+        {
+            print_header( header );
+        }
         bool io_error = false;
         while( !io_error && read_chunk_header( STDIN_FILENO, chunk_header ) )
         {
-            if( !info_only )
+            if( fd >= 0 )
             {
                 lseek64( fd, offset, SEEK_SET );
             }
             if( !valid_chunk_header( chunk_header ) )
             {
-                printf( " [!] Invalid format!\n" );
+                fprintf( stderr, " [!] Invalid format!\n" );
                 break;
             }
-            print_chunk_header( block_offset, chunk_header );
+            if( print_info )
+            {
+                print_chunk_header( block_offset, chunk_header );
+            }
             if( chunk_header.chunk_sz > 0 )
             {
                 // Write contents to specified file/device
@@ -59,7 +70,7 @@ int main( int argc, char *argv[] )
                     io_error = !read_data_retry( STDIN_FILENO, ( void * )&filler, sizeof( filler ) );
                     if( io_error )
                     {
-                        printf( " [!] Read error!\n" );
+                        fprintf( stderr, " [!] Read error!\n" );
                     }
                     else
                     {
@@ -75,7 +86,7 @@ int main( int argc, char *argv[] )
                     io_error = !read_data_retry( STDIN_FILENO, ( void * )&crc, sizeof( crc ) );
                     if( io_error )
                     {
-                        printf( " [!] Read error!\n" );
+                        fprintf( stderr, " [!] Read error!\n" );
                     }
                     continue;
                 }
@@ -86,37 +97,37 @@ int main( int argc, char *argv[] )
                         io_error = !read_data_retry( STDIN_FILENO, buffer, SPARSE_BLOCK_SIZE );
                         if( io_error )
                         {
-                            printf( " [!] Read error!\n" );
+                            fprintf( stderr, " [!] Read error!\n" );
                         }
-                        if( !info_only && !io_error )
+                        if( ( fd >= 0 ) && !io_error )
                         {
                             io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
                             if( io_error )
                             {
-                                printf( " [!] Write error!\n" );
+                                fprintf( stderr, " [!] Write error!\n" );
                             }
                         }
                     }
                     else if( chunk_header.chunk_type == CHUNK_TYPE_DONT_CARE )
                     {
                         // buffer is already declared as all zeros
-                        if( !info_only && !io_error )
+                        if( ( fd >= 0 ) && !io_error )
                         {
                             io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
                             if( io_error )
                             {
-                                printf( " [!] Write error!\n" );
+                                fprintf( stderr, " [!] Write error!\n" );
                             }
                         }
                     }
                     else if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
                     {
-                        if( !info_only && !io_error )
+                        if( ( fd >= 0 ) && !io_error )
                         {
                             io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
                             if( io_error )
                             {
-                                printf( " [!] Write error!\n" );
+                                fprintf( stderr, " [!] Write error!\n" );
                             }
                         }
                     }
@@ -131,7 +142,7 @@ int main( int argc, char *argv[] )
         // Treat input as a raw image
         // Recover data from the header since stdin doesn't support seeking
         bool io_error = false;
-        if( !info_only )
+        if( fd >= 0 )
         {
             io_error = !write_data_retry( fd, ( void * )&header, sizeof( sparse_header_t ) );
         }
@@ -142,17 +153,17 @@ int main( int argc, char *argv[] )
             io_error = ( input_count <= 0 );
             if( io_error )
             {
-                printf( " [!] Read error!\n" );
+                fprintf( stderr, " [!] Read error!\n" );
             }
-            else if( !info_only )
+            else if( fd >= 0 )
             {
                 io_error = !io_error && !write_data_retry( fd, buffer, input_count );
                 if( io_error )
                 {
-                    printf( " [!] Write error!\n" );
+                    fprintf( stderr, " [!] Write error!\n" );
                 }
             }
-            else
+            else if( print_info )
             {
                 printf( " [*] Read: %u bytes\n", input_count );
             }
@@ -160,6 +171,7 @@ int main( int argc, char *argv[] )
     }
 
     // Clean up and exit
+    fflush( stderr );
     close( fd );
     return 0;
 }
