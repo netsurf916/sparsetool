@@ -102,6 +102,34 @@ void print_chunk_header( uint64_t &block_offset, chunk_header_t &header )
     printf( " Total Size: %10u bytes\n", header.total_sz );
 }
 
+void print_chunk_header_fill( uint64_t &block_offset, chunk_header_t &header, uint32_t filler )
+{
+    printf( " [+%08u] ", block_offset );
+    block_offset += header.chunk_sz;
+    switch( header.chunk_type )
+    {
+        case CHUNK_TYPE_RAW:
+            printf( "Raw,       " );
+            break;
+        case CHUNK_TYPE_FILL:
+            printf( "Fill,      " );
+            break;
+        case CHUNK_TYPE_DONT_CARE:
+            printf( "Don't Care," );
+            break;
+        case CHUNK_TYPE_CRC32:
+            printf( "CRC32,     " );
+            break;
+        default:
+            printf( "Unknown,   " );
+            break;
+    }
+    printf( " Reserved: 0x%04X,", header.reserved1 );
+    printf( " Blocks: %6u,", header.chunk_sz );
+    printf( " Total Size: %10u bytes,", header.total_sz );
+    printf( " Filler: 0x%08X\n", filler );
+}
+
 bool valid_chunk_header( chunk_header_t &header )
 {
     bool ok = ( ( header.chunk_type == CHUNK_TYPE_RAW       ) ||

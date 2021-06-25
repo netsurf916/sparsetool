@@ -41,7 +41,7 @@ int main( int argc, char *argv[] )
 
     sparse_header_t header;
     chunk_header_t  chunk_header;
-    uint64_t        block_offset = 0;
+    uint64_t        block_offset = 0; // Only used for printed information
     uint64_t        offset       = 0;
 
     // Read image data from stdin
@@ -63,7 +63,7 @@ int main( int argc, char *argv[] )
                 fprintf( stderr, " [!] Invalid format!\n" );
                 break;
             }
-            if( print_info )
+            if( print_info && ( chunk_header.chunk_type != CHUNK_TYPE_FILL ) )
             {
                 print_chunk_header( block_offset, chunk_header );
             }
@@ -82,6 +82,10 @@ int main( int argc, char *argv[] )
                     }
                     else
                     {
+                        if( print_info )
+                        {
+                            print_chunk_header_fill( block_offset, chunk_header, filler );
+                        }
                         for( int i = 0; i < ( SPARSE_BLOCK_SIZE / sizeof( filler ) ); ++i )
                         {
                             ( ( uint32_t * )buffer )[ i ] = filler;
