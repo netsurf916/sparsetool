@@ -2,12 +2,20 @@
 
 int main( int argc, char *argv[] )
 {
-    int fd = -1;
+    int fd_in  = STDIN_FILENO;
+    int fd_out = -1;
     bool print_info = false;
     if( ( argc == 3 ) && ( ( argv[1][0] == 'w' ) || ( argv[1][1] == 'w' ) ) )
     {
-        fd = open( argv[2], O_WRONLY );
-        if( fd < 0 )
+        if( ( argv[2][0] == '-' ) && ( argv[2][1] == '\0' ) )
+        {
+            fd_out = STDOUT_FILENO;
+        }
+        else
+        {
+            fd_out = open( argv[2], O_WRONLY );
+        }
+        if( fd_out < 0 )
         {
             fprintf( stderr, " [!] Unable to open: \"%s\"\n", argv[2] );
             fflush( stderr );
@@ -37,18 +45,18 @@ int main( int argc, char *argv[] )
     uint64_t        offset       = 0;
 
     // Read image data from stdin
-    if( read_header( STDIN_FILENO, header ) && valid_header( header ) )
+    if( read_header( fd_in, header ) && valid_header( header ) )
     {
         if( print_info )
         {
             print_header( header );
         }
         bool io_error = false;
-        while( !io_error && read_chunk_header( STDIN_FILENO, chunk_header ) )
+        while( !io_error && read_chunk_header( fd_in, chunk_header ) )
         {
-            if( fd >= 0 )
+            if( fd_out >= 0 )
             {
-                lseek64( fd, offset, SEEK_SET );
+                lseek64( fd_out, offset, SEEK_SET );
             }
             if( !valid_chunk_header( chunk_header ) )
             {
@@ -67,7 +75,7 @@ int main( int argc, char *argv[] )
                 if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
                 {
                     uint32_t filler = 0;
-                    io_error = !read_data_retry( STDIN_FILENO, ( void * )&filler, sizeof( filler ) );
+                    io_error = !read_data_retry( fd_in, ( void * )&filler, sizeof( filler ) );
                     if( io_error )
                     {
                         fprintf( stderr, " [!] Read error!\n" );
@@ -83,7 +91,7 @@ int main( int argc, char *argv[] )
                 if( chunk_header.chunk_type == CHUNK_TYPE_CRC32 )
                 {
                     uint32_t crc = 0;
-                    io_error = !read_data_retry( STDIN_FILENO, ( void * )&crc, sizeof( crc ) );
+                    io_error = !read_data_retry( fd_in, ( void * )&crc, sizeof( crc ) );
                     if( io_error )
                     {
                         fprintf( stderr, " [!] Read error!\n" );
@@ -94,14 +102,14 @@ int main( int argc, char *argv[] )
                 {
                     if( chunk_header.chunk_type == CHUNK_TYPE_RAW )
                     {
-                        io_error = !read_data_retry( STDIN_FILENO, buffer, SPARSE_BLOCK_SIZE );
+                        io_error = !read_data_retry( fd_in, buffer, SPARSE_BLOCK_SIZE );
                         if( io_error )
                         {
                             fprintf( stderr, " [!] Read error!\n" );
                         }
-                        if( ( fd >= 0 ) && !io_error )
+                        if( ( fd_out >= 0 ) && !io_error )
                         {
-                            io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                            io_error = !write_data_retry( fd_out, buffer, SPARSE_BLOCK_SIZE );
                             if( io_error )
                             {
                                 fprintf( stderr, " [!] Write error!\n" );
@@ -111,9 +119,9 @@ int main( int argc, char *argv[] )
                     else if( chunk_header.chunk_type == CHUNK_TYPE_DONT_CARE )
                     {
                         // buffer is already declared as all zeros
-                        if( ( fd >= 0 ) && !io_error )
+                        if( ( fd_out >= 0 ) && !io_error )
                         {
-                            io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                            io_error = !write_data_retry( fd_out, buffer, SPARSE_BLOCK_SIZE );
                             if( io_error )
                             {
                                 fprintf( stderr, " [!] Write error!\n" );
@@ -122,9 +130,9 @@ int main( int argc, char *argv[] )
                     }
                     else if( chunk_header.chunk_type == CHUNK_TYPE_FILL )
                     {
-                        if( ( fd >= 0 ) && !io_error )
+                        if( ( fd_out >= 0 ) && !io_error )
                         {
-                            io_error = !write_data_retry( fd, buffer, SPARSE_BLOCK_SIZE );
+                            io_error = !write_data_retry( fd_out, buffer, SPARSE_BLOCK_SIZE );
                             if( io_error )
                             {
                                 fprintf( stderr, " [!] Write error!\n" );
@@ -142,22 +150,22 @@ int main( int argc, char *argv[] )
         // Treat input as a raw image
         // Recover data from the header since stdin doesn't support seeking
         bool io_error = false;
-        if( fd >= 0 )
+        if( fd_out >= 0 )
         {
-            io_error = !write_data_retry( fd, ( void * )&header, sizeof( sparse_header_t ) );
+            io_error = !write_data_retry( fd_out, ( void * )&header, sizeof( sparse_header_t ) );
         }
         char buffer[ SPARSE_BLOCK_SIZE ] = {0};
         while( !io_error )
         {
-            int64_t input_count = read( STDIN_FILENO, buffer, SPARSE_BLOCK_SIZE );
+            int64_t input_count = read( fd_in, buffer, SPARSE_BLOCK_SIZE );
             io_error = ( input_count <= 0 );
             if( io_error )
             {
                 fprintf( stderr, " [!] Read error!\n" );
             }
-            else if( fd >= 0 )
+            else if( fd_out >= 0 )
             {
-                io_error = !io_error && !write_data_retry( fd, buffer, input_count );
+                io_error = !io_error && !write_data_retry( fd_out, buffer, input_count );
                 if( io_error )
                 {
                     fprintf( stderr, " [!] Write error!\n" );
@@ -172,6 +180,7 @@ int main( int argc, char *argv[] )
 
     // Clean up and exit
     fflush( stderr );
-    close( fd );
+    close( fd_in );
+    close( fd_out );
     return 0;
 }
