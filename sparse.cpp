@@ -132,21 +132,21 @@ void print_chunk_header_fill( uint64_t &block_offset, chunk_header_t &header, ui
 
 bool valid_chunk_header( chunk_header_t &header )
 {
-    bool ok = ( ( header.chunk_type == CHUNK_TYPE_RAW       ) ||
-                ( header.chunk_type == CHUNK_TYPE_FILL      ) ||
-                ( header.chunk_type == CHUNK_TYPE_DONT_CARE ) ||
-                ( header.chunk_type == CHUNK_TYPE_CRC32     ) );
-    if( header.chunk_type == CHUNK_TYPE_RAW )
+    bool ok = false;
+    switch( header.chunk_type )
     {
-        ok = ok && ( ( header.total_sz - ( header.chunk_sz * SPARSE_BLOCK_SIZE ) ) == sizeof( chunk_header_t ) );
-    }
-    if( header.chunk_type == CHUNK_TYPE_DONT_CARE )
-    {
-        ok = ok && ( header.total_sz == sizeof( chunk_header_t ) );
-    }
-    if( ( header.chunk_type == CHUNK_TYPE_CRC32 ) || ( header.chunk_type == CHUNK_TYPE_FILL ) )
-    {
-        ok = ok && ( header.total_sz == ( sizeof( chunk_header_t ) + 4 ) );
+        case CHUNK_TYPE_RAW:
+            ok = ( ( header.total_sz - ( header.chunk_sz * SPARSE_BLOCK_SIZE ) ) == sizeof( chunk_header_t ) );
+            break;
+        case CHUNK_TYPE_FILL:
+            ok = ( header.total_sz == ( sizeof( chunk_header_t ) + 4 ) );
+            break;
+        case CHUNK_TYPE_DONT_CARE:
+            ok = ( header.total_sz == sizeof( chunk_header_t ) );
+            break;
+        case CHUNK_TYPE_CRC32:
+            ok = ( header.total_sz == ( sizeof( chunk_header_t ) + 4 ) );
+            break;
     }
     return ok;
 }
