@@ -84,7 +84,7 @@ int main( int argc, char *argv[] )
                     {
                         if( print_info )
                         {
-                            print_chunk_header_fill( block_offset, chunk_header, filler );
+                            print_chunk_header( block_offset, chunk_header, filler );
                         }
                         for( int i = 0; i < ( SPARSE_BLOCK_SIZE / sizeof( filler ) ); ++i )
                         {

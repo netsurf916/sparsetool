@@ -49,6 +49,6 @@ void print_header( sparse_header_t &header );
 bool valid_header( sparse_header_t &header );
 
 bool read_chunk_header( int fd, chunk_header_t &header );
-void print_chunk_header( uint64_t &block_offset, chunk_header_t &header );
+void print_chunk_header( uint64_t &block_offset, chunk_header_t &header, uint32_t filler = 0 );
 void print_chunk_header_fill( uint64_t &block_offset, chunk_header_t &header, uint32_t filler );
 bool valid_chunk_header( chunk_header_t &header );
